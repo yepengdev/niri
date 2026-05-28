@@ -1,0 +1,53 @@
+name: Build niri
+
+on:
+  workflow_dispatch:  # 允许在 GitHub 网页上手动点击编译
+  push:
+    branches: [ "main" ]  # 推代码时自动编译，不需要可删掉
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # 安装 niri 需要的所有系统依赖（根据 Getting Started 整理）
+      - name: 安装系统依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake pkg-config clang \
+            libudev-dev libgbm-dev libinput-dev libseat-dev \
+            libxkbcommon-dev libegl1-mesa-dev libgl1-mesa-dri \
+            libgles2-mesa-dev libwayland-dev libavutil-dev \
+            libavcodec-dev libavformat-dev libpixman-1-dev \
+            libvulkan-dev libdrm-dev wayland-protocols
+
+      # 确保 Rust 工具链可用（会根据项目里的 rust-toolchain.toml 自动安装对应版本）
+      - name: 配置 Rust 工具链
+        run: |
+          rustup self update
+          rustup show
+
+      # 缓存 Cargo 依赖和已编译的中间文件，后续编译飞快
+      - name: 缓存 Cargo 目录
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: 编译 niri (release)
+        run: cargo build --release
+
+      # 将编译好的可执行文件上传为 Artifact
+      - name: 上传二进制文件
+        uses: actions/upload-artifact@v4
+        with:
+          name: niri
+          path: target/release/niri
